@@ -108,8 +108,13 @@ static int NSP_VideoInit(_THIS, SDL_PixelFormat *vformat)
 		vformat->Rmask = NSP_RMASK16;
 		vformat->Gmask = NSP_GMASK16;
 		vformat->Bmask = NSP_BMASK16;
-	} else
+		if(!lcd_init(SCR_320x240_565))
+			return 1;
+	} else {
 		vformat->BitsPerPixel = 8;
+		if(!lcd_init(SCR_320x240_4))
+			return 1;
+	}
 
 	return(0);
 }
@@ -136,7 +141,6 @@ static SDL_Surface *NSP_SetVideoMode(_THIS, SDL_Surface *current,
 				     ? (int)NSP_PIXEL_ADDR(0, win_x, win_y, 2 * SCREEN_WIDTH, 2)
 				     : (int)NSP_PIXEL_ADDR(0, win_x / 2, win_y, SCREEN_WIDTH / 2, 1);
 		this->hidden->win_x = win_x;
-		memset(SCREEN_BASE_ADDRESS, 0, SCREEN_BYTES_SIZE);
 	} else
 		this->hidden->offset = this->hidden->win_x = 0;
 
@@ -156,12 +160,21 @@ static SDL_Surface *NSP_SetVideoMode(_THIS, SDL_Surface *current,
 		SDL_free( this->hidden->buffer );
 	}
 
+
+	this->hidden->buffer2 = SDL_malloc((bpp / 8) * SCREEN_WIDTH * SCREEN_HEIGHT);
+	if ( ! this->hidden->buffer2 ) {
+		SDL_SetError("Couldn't allocate buffer2 for requested mode");
+		return(NULL);
+	}
+
 	this->hidden->buffer = SDL_malloc((bpp / 8) * width * height);
 	if ( ! this->hidden->buffer ) {
+		SDL_free(this->hidden->buffer2);
 		SDL_SetError("Couldn't allocate buffer for requested mode");
 		return(NULL);
 	}
 
+	memset(this->hidden->buffer2, 0, (bpp / 8) * SCREEN_WIDTH * SCREEN_HEIGHT);
 	memset(this->hidden->buffer, 0, (bpp / 8) * width * height);
 
 	/* Allocate the new pixel format for the screen */
@@ -200,6 +213,9 @@ static void NSP_UpdateRects(_THIS, int numrects, SDL_Rect *rects)
 	int dst_skip = this->hidden->cx ? (2 * SCREEN_WIDTH) : (SCREEN_WIDTH / 2);
 	int i, j, k;
 
+	if ( this->hidden->buffer2 == NULL )
+		return;
+
 	for ( i = 0; i < numrects; ++i ) {
 		SDL_Rect *rect = &rects[i];
 		Uint8 *src_addr, *dst_addr;
@@ -212,8 +228,8 @@ static void NSP_UpdateRects(_THIS, int numrects, SDL_Rect *rects)
 		src_addr = NSP_PIXEL_ADDR(SDL_VideoSurface->pixels, rect->x, rect->y,
 					  SDL_VideoSurface->pitch, SDL_VideoSurface->format->BytesPerPixel);
 		dst_addr = this->hidden->cx
-			 ? NSP_PIXEL_ADDR(SCREEN_BASE_ADDRESS, rect->x, rect->y, 2 * SCREEN_WIDTH, 2)
-			 : NSP_PIXEL_ADDR(SCREEN_BASE_ADDRESS, rect->x / 2, rect->y, SCREEN_WIDTH / 2, 1);
+			 ? NSP_PIXEL_ADDR(this->hidden->buffer2, rect->x, rect->y, 2 * SCREEN_WIDTH, 2)
+			 : NSP_PIXEL_ADDR(this->hidden->buffer2, rect->x / 2, rect->y, SCREEN_WIDTH / 2, 1);
 		dst_addr += this->hidden->offset;
 
 		odd_left = (this->hidden->win_x + rect->x) & 1;
@@ -237,6 +253,8 @@ static void NSP_UpdateRects(_THIS, int numrects, SDL_Rect *rects)
 						*(Uint16 *)(dst_addr + j) = nsp_palette[src_addr[k]];
 				);
 			}
+
+			lcd_blit(this->hidden->buffer2, SCR_320x240_565);
 		} else {
 			/* 8 bpp SW, 4 bpp HW */
 			NSP_DRAW_LOOP(
@@ -249,6 +267,8 @@ static void NSP_UpdateRects(_THIS, int numrects, SDL_Rect *rects)
 				if ( odd_right )
 					dst_addr[k] = (nsp_palette[src_addr[j]] << 4) | (dst_addr[k] & 0x0f);
 			);
+
+			lcd_blit(this->hidden->buffer2, SCR_320x240_4);
 		}
 	}
 }
@@ -270,4 +290,5 @@ static int NSP_SetColors(_THIS, int firstcolor, int ncolors, SDL_Color *colors)
 static void NSP_VideoQuit(_THIS)
 {
 	NSP_DEBUG("Closing video");
+	lcd_init(SCR_TYPE_INVALID);
 }
