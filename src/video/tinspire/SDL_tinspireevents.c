@@ -36,6 +36,11 @@ static Uint8 key_state[NSP_NUMKEYS];
 static SDLKey sdlak_keymap[4] = {SDLK_UP, SDLK_RIGHT, SDLK_DOWN, SDLK_LEFT};
 static Uint8 arrow_key_state[4];
 
+static Sint16 old_x = 0;
+static Sint16 old_y = 0;
+static bool old_contact = false;
+static bool old_pressed = false;
+
 static void nsp_update_keyboard(void)
 {
 	int i;
@@ -46,6 +51,10 @@ static void nsp_update_keyboard(void)
 		key_pressed = isKeyPressed(nspk_keymap[i]);
 		NSP_UPDATE_KEY_EVENT(sdlk_keymap[i], i, key_state[i], key_pressed);
 	}
+	bool keypad_pressed = isKeyPressed(nspk_keymap[NSP_KEY_CLICK]);
+	if (keypad_pressed != old_pressed)
+		SDL_PrivateMouseButton(keypad_pressed ? SDL_PRESSED : SDL_RELEASED, SDL_BUTTON_LEFT, 0, 0);
+	old_pressed = keypad_pressed;
 }
 
 static void nsp_update_arrow_keys(void)
@@ -65,10 +74,32 @@ static void nsp_update_arrow_keys(void)
 		NSP_UPDATE_KEY_EVENT(sdlak_keymap[i], i, arrow_key_state[i], arrow_key_pressed[i]);
 }
 
+static void nsp_update_mouse(void)
+{
+	touchpad_report_t tp;
+	touchpad_scan(&tp);
+	Sint16 x = (Sint16)tp.x;
+	Sint16 y = (Sint16)tp.y;
+	if (tp.contact) {
+		if (old_contact) {
+			Sint16 dx = (x - old_x)/15;
+			//if (dx > 5 || dx < -5) dx = 0;
+			Sint16 dy = -(y - old_y)/15;
+			//if (dy > 5 || dy < -5) dy = 0;
+			if (dx != 0 || dy != 0)
+				SDL_PrivateMouseMotion(0, 1, dx, dy);
+		}
+		old_x = x;
+		old_y = y;
+	}
+	old_contact = tp.contact;
+}
+
 void NSP_PumpEvents(_THIS)
 {
 	nsp_update_keyboard();
 	nsp_update_arrow_keys();
+	nsp_update_mouse();
 }
 
 void NSP_InitOSKeymap(_THIS)
@@ -197,7 +228,7 @@ void NSP_InitOSKeymap(_THIS)
 	sdlk_keymap[NSP_KEY_8] =	SDLK_8;
 	sdlk_keymap[NSP_KEY_9] =	SDLK_9;
 	sdlk_keymap[NSP_KEY_RET] =	SDLK_RETURN;
-	sdlk_keymap[NSP_KEY_ENTER] =	SDLK_RETURN;
+	sdlk_keymap[NSP_KEY_ENTER] =	SDLK_KP_ENTER;
 	sdlk_keymap[NSP_KEY_SPACE] =	SDLK_SPACE;
 	sdlk_keymap[NSP_KEY_NEGATIVE] =	SDLK_MINUS;
 	sdlk_keymap[NSP_KEY_PERIOD] =	SDLK_PERIOD;
@@ -224,7 +255,7 @@ void NSP_InitOSKeymap(_THIS)
 	sdlk_keymap[NSP_KEY_THETA] =	SDLK_UNKNOWN;
 	sdlk_keymap[NSP_KEY_LTHAN] =	SDLK_LESS;
 	sdlk_keymap[NSP_KEY_FLAG] =	SDLK_UNKNOWN;
-	sdlk_keymap[NSP_KEY_CLICK] =	SDLK_KP_ENTER;
+	//sdlk_keymap[NSP_KEY_CLICK] =	SDLK_KP_ENTER;
 	sdlk_keymap[NSP_KEY_HOME] = 	SDLK_HOME;
 	sdlk_keymap[NSP_KEY_MENU] =	SDLK_MENU;
 	sdlk_keymap[NSP_KEY_TAN] =	SDLK_UNKNOWN;

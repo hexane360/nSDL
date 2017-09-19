@@ -121,8 +121,6 @@ int SDL_PrivateMouseMotion(Uint8 buttonstate, int relative, Sint16 x, Sint16 y)
 		buttonstate = SDL_ButtonState;
 	}
 
-	Xrel = x;
-	Yrel = y;
 	if ( relative ) {
 		/* Push the cursor around */
 		x = (SDL_MouseX+x);
@@ -153,10 +151,8 @@ int SDL_PrivateMouseMotion(Uint8 buttonstate, int relative, Sint16 x, Sint16 y)
 	   This prevents lots of extraneous large delta relative motion when
 	   the screen is windowed mode and the mouse is outside the window.
 	*/
-	if ( ! relative ) {
-		Xrel = X-SDL_MouseX;
-		Yrel = Y-SDL_MouseY;
-	}
+	Xrel = X-SDL_MouseX;
+	Yrel = Y-SDL_MouseY;
 
 	/* Drop events that don't change state */
 	if ( ! Xrel && ! Yrel ) {
