@@ -53,8 +53,15 @@ static void nsp_update_keyboard(void)
 	}
 }
 
-static void nsp_update_arrow_keys(void)
+static void nsp_update_touchpad_keys(void)
 {
+	Uint8 click_state;
+	if (isKeyPressed(nspk_keymap[NSP_KEY_CLICK])) {
+		click_state = (isKeyPressed(nspk_keymap[NSP_KEY_CTRL])) ? SDL_BUTTON_RIGHT : SDL_BUTTON_LEFT; //if pressed, which button is pressed?
+	} else {
+		click_state = 0;
+	}
+	
 	BOOL ul = isKeyPressed(KEY_NSPIRE_LEFTUP),
 	     ur = isKeyPressed(KEY_NSPIRE_UPRIGHT),
 	     dr = isKeyPressed(KEY_NSPIRE_RIGHTDOWN),
@@ -65,28 +72,22 @@ static void nsp_update_arrow_keys(void)
 		dr || isKeyPressed(KEY_NSPIRE_DOWN) || dl,
 		dl || isKeyPressed(KEY_NSPIRE_LEFT) || ul
 	};
-	int i;
-	for ( i = 0; i < 4; ++i )
-		NSP_UPDATE_KEY_EVENT(sdlak_keymap[i], i, arrow_key_state[i], arrow_key_pressed[i]);
-}
-
-static void nsp_update_mouse(void)
-{
-	Uint8 click_state;
-	if (isKeyPressed(nspk_keymap[NSP_KEY_CLICK])) {
-		click_state = (isKeyPressed(nspk_keymap[NSP_KEY_CTRL])) ? SDL_BUTTON_RIGHT : SDL_BUTTON_LEFT; //if pressed, which button is pressed?
-	} else {
-		click_state = 0;
-	}
-	
+	bool any_arrow_pressed = arrow_key_pressed[0] || arrow_key_pressed[1] || arrow_key_pressed[2] || arrow_key_pressed[3];
+	//if there's a mouse event happening, ignore arrow keys
 	if (click_state && !old_click_state) { //rising edge
 		SDL_PrivateMouseButton(SDL_PRESSED, click_state, 0, 0);
 		old_click_state = click_state;
-	} else if (!click_state && old_click_state) { //falling edge
+	} else if (!click_state && !any_arrow_pressed && old_click_state) { //falling edge
 		SDL_PrivateMouseButton(SDL_RELEASED, old_click_state, 0, 0); //old_click_state to ensure that presses and releases are matched
 		old_click_state = click_state;
+	} else if (!old_click_state) { //otherwise treat keypad keys normally
+		for (int i = 0; i < 4; ++i )
+			NSP_UPDATE_KEY_EVENT(sdlak_keymap[i], i, arrow_key_state[i], arrow_key_pressed[i]);
 	}
-	
+}
+
+static void nsp_update_mouse(void)
+{	
 	touchpad_report_t tp;
 	touchpad_scan(&tp);
 	Sint16 x = (Sint16)tp.x;
@@ -109,7 +110,7 @@ static void nsp_update_mouse(void)
 void NSP_PumpEvents(_THIS)
 {
 	nsp_update_keyboard();
-	nsp_update_arrow_keys();
+	nsp_update_touchpad_keys();
 	nsp_update_mouse();
 }
 
