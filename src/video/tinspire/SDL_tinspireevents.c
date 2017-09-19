@@ -39,7 +39,7 @@ static Uint8 arrow_key_state[4];
 static Sint16 old_x = 0;
 static Sint16 old_y = 0;
 static bool old_contact = false;
-static bool old_pressed = false;
+static Uint8 old_click_state = 0;
 
 static void nsp_update_keyboard(void)
 {
@@ -51,10 +51,6 @@ static void nsp_update_keyboard(void)
 		key_pressed = isKeyPressed(nspk_keymap[i]);
 		NSP_UPDATE_KEY_EVENT(sdlk_keymap[i], i, key_state[i], key_pressed);
 	}
-	bool keypad_pressed = isKeyPressed(nspk_keymap[NSP_KEY_CLICK]);
-	if (keypad_pressed != old_pressed)
-		SDL_PrivateMouseButton(keypad_pressed ? SDL_PRESSED : SDL_RELEASED, SDL_BUTTON_LEFT, 0, 0);
-	old_pressed = keypad_pressed;
 }
 
 static void nsp_update_arrow_keys(void)
@@ -76,15 +72,30 @@ static void nsp_update_arrow_keys(void)
 
 static void nsp_update_mouse(void)
 {
+	Uint8 click_state;
+	if (isKeyPressed(nspk_keymap[NSP_KEY_CLICK])) {
+		click_state = (isKeyPressed(nspk_keymap[NSP_KEY_CTRL])) ? SDL_BUTTON_RIGHT : SDL_BUTTON_LEFT; //if pressed, which button is pressed?
+	} else {
+		click_state = 0;
+	}
+	
+	if (click_state && !old_click_state) { //rising edge
+		SDL_PrivateMouseButton(SDL_PRESSED, click_state, 0, 0);
+		old_click_state = click_state;
+	} else if (!click_state && old_click_state) { //falling edge
+		SDL_PrivateMouseButton(SDL_RELEASED, old_click_state, 0, 0); //old_click_state to ensure that presses and releases are matched
+		old_click_state = click_state;
+	}
+	
 	touchpad_report_t tp;
 	touchpad_scan(&tp);
 	Sint16 x = (Sint16)tp.x;
 	Sint16 y = (Sint16)tp.y;
 	if (tp.contact) {
 		if (old_contact) {
-			Sint16 dx = (x - old_x)/15;
+			Sint16 dx = (x - old_x)/8;
 			//if (dx > 5 || dx < -5) dx = 0;
-			Sint16 dy = -(y - old_y)/15;
+			Sint16 dy = -(y - old_y)/8;
 			//if (dy > 5 || dy < -5) dy = 0;
 			if (dx != 0 || dy != 0)
 				SDL_PrivateMouseMotion(0, 1, dx, dy);
