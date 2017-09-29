@@ -20,8 +20,6 @@
     slouken@libsdl.org
 */
 
-#define OLD_SCREEN_API
-
 #include "SDL.h"
 #include "SDL_config.h"
 #include "SDL_mouse.h"
